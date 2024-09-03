@@ -92,6 +92,7 @@ class GameMaster:
   def unmask(self):
     """Seer chooses a player to unmask."""
     if self.state.seer.name not in self.this_round.players:
+      tqdm.tqdm.write(f"Seer {self.state.seer.name} no longer in the game")
       return  # Seer no longer in the game
 
     unmask, log = self.state.seer.unmask()
@@ -100,6 +101,7 @@ class GameMaster:
     if unmask is not None:
       self.this_round.unmasked = unmask
       self.state.seer.reveal_and_update(unmask, self.state.players[unmask].role)
+      tqdm.tqdm.write(f"{self.state.seer.name} find {unmask} is {self.state.players[unmask].role}")
     else:
       raise ValueError("Unmask function did not return a valid player.")
 
@@ -112,8 +114,8 @@ class GameMaster:
           f"{player_name} did not return a valid bid. Find the raw response"
           " in the `bid` field in the log"
       )
-    if bid > 1:
-      tqdm.tqdm.write(f"{player_name} bid: {bid}")
+    # if bid > 1:
+    #   tqdm.tqdm.write(f"{player_name} bid: {bid}")
     return bid, log
 
   def get_next_speaker(self):
@@ -193,10 +195,13 @@ class GameMaster:
         else:
           raise ValueError(f"{name}.gamestate needs to be initialized.")
 
-      if idx == MAX_DEBATE_TURNS - 1 or RUN_SYNTHETIC_VOTES:
-        votes, vote_logs = self.run_voting()
-        self.this_round.votes.append(votes)
-        self.this_round_log.votes.append(vote_logs)
+      try:
+        if idx == MAX_DEBATE_TURNS - 1 or RUN_SYNTHETIC_VOTES:
+          votes, vote_logs = self.run_voting()
+          self.this_round.votes.append(votes)
+          self.this_round_log.votes.append(vote_logs)
+      except ValueError as e:
+        print(e)
 
     for player, vote in self.this_round.votes[-1].items():
       tqdm.tqdm.write(f"{player} voted to remove {vote}")
@@ -239,7 +244,7 @@ class GameMaster:
       exiled_player = self.this_round.exiled
       self.this_round.players.remove(exiled_player)
       announcement = (
-          f"The majority voted to remove {exiled_player} from the game."
+          f"The majority voted to remove {exiled_player} ({self.state.players[exiled_player].role}) from the game."
       )
     else:
       announcement = (

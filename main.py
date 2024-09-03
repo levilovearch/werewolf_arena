@@ -14,6 +14,7 @@
 
 from werewolf.runner import run
 from absl import app as absl_app
+import logging
 
 
 def main(_):
@@ -21,4 +22,6 @@ def main(_):
 
 
 if __name__ == "__main__":
+    logging.getLogger("openai").setLevel(logging.ERROR)
+    logging.getLogger("httpx").setLevel(logging.ERROR)
     absl_app.run(main)

@@ -20,6 +20,8 @@ import google
 import vertexai
 from vertexai.preview import generative_models
 from anthropic import AnthropicVertex
+import zmq
+import json
 
 
 def generate(model, **kwargs):
@@ -27,6 +29,8 @@ def generate(model, **kwargs):
         return generate_openai(model, **kwargs)
     elif "claude" in model:
         return generate_authropic(model, **kwargs)
+    elif "llama" in model:
+        return generate_hf(model, **kwargs)
     else:
         return generate_vertexai(model, **kwargs)
 
@@ -129,3 +133,21 @@ def generate_vertexai(
     assert isinstance(response, generative_models.GenerationResponse)
 
     return response.text
+
+def generate_hf(model: str, prompt: str, **kwargs):
+    # Create a ZeroMQ context
+    context = zmq.Context()
+
+    # Create a REQ (request) socket
+    socket = context.socket(zmq.REQ)
+    socket.connect("tcp://localhost:5555")  # Connect to the server
+
+    message = {"role": "user", "content": prompt}
+    message_str = json.dumps(message)
+    # print(f"Sending request: {message_str}")
+    socket.send_string(message_str)
+
+    response = socket.recv_string()
+    socket.close()
+    context.term()
+    return response

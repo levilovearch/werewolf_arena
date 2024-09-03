@@ -386,7 +386,7 @@ class Seer(Player):
 
   def reveal_and_update(self, player, role):
     self._add_observation(
-        f"During the night, I decided to investigate {player} and learned they are a {role}."
+        f"During the night, I decided to investigate {player} and learned {player} is a {role}."
     )
     self.previously_unmasked[player] = role
 
