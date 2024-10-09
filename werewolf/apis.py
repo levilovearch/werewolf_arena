@@ -195,7 +195,7 @@ def generate_remote_hf(model: str, prompt: str, **kwargs):
     return response
 
 def generate_hf_inference(model: str, prompt: str, **kwargs):
-    client = InferenceClient(token="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")
+    client = InferenceClient(token="")
     response = client.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": prompt}],
