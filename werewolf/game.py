@@ -17,6 +17,7 @@
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 import random
+import logging
 from typing import List
 
 import tqdm
@@ -78,6 +79,7 @@ class GameMaster:
   def protect(self):
     """Doctor chooses a player to protect."""
     if self.state.doctor.name not in self.this_round.players:
+      tqdm.tqdm.write(f"Doctor {self.state.doctor.name} no longer in the game")
       return  # Doctor no longer in the game
 
     protect, log = self.state.doctor.save()
@@ -114,8 +116,8 @@ class GameMaster:
           f"{player_name} did not return a valid bid. Find the raw response"
           " in the `bid` field in the log"
       )
-    # if bid > 1:
-    #   tqdm.tqdm.write(f"{player_name} bid: {bid}")
+    if bid > 1:
+      tqdm.tqdm.write(f"{player_name} bid: {bid}")
     return bid, log
 
   def get_next_speaker(self):
@@ -305,8 +307,10 @@ class GameMaster:
         (self.run_summaries, "The Players are summarizing the debate."),
     ]:
       tqdm.tqdm.write(message)
-      action()
-
+      try:
+        action()
+      except ValueError as e:
+        print(e)
       if self.state.winner:
         tqdm.tqdm.write(f"Round {self.current_round_num} is complete.")
         self.this_round.success = True
@@ -330,6 +334,57 @@ class GameMaster:
     self.state.winner = self.get_winner()
     if self.state.winner:
       tqdm.tqdm.write(f"The winner is {self.state.winner}!")
+
+  def run_game(self) -> str:
+    """Run the entire Werewolf game and return the winner."""
+    while not self.state.winner:
+      tqdm.tqdm.write(f"STARTING ROUND: {self.current_round_num}")
+      self.run_round()
+      for name in self.this_round.players:
+        if self.state.players[name].gamestate:
+          self.state.players[name].gamestate.round_number = (
+              self.current_round_num + 1
+          )
+          self.state.players[name].gamestate.clear_debate()
+      self.current_round_num += 1
+
+    tqdm.tqdm.write("Game is complete!")
+    return self.state.winner
+
+class BidFreeGame(GameMaster):
+  """GameMaster that does not require bidding."""
+
+  def get_next_speaker(self):
+    """Determine the next speaker based on the order of players."""
+    previous_speaker, previous_dialogue = (
+        self.this_round.debate[-1] if self.this_round.debate else (None, None)
+    )
+
+    player_order = self.this_round.players.copy()
+    if previous_speaker:
+      player_order.remove(previous_speaker)
+      player_order.insert(0, previous_speaker)
+
+    for name in player_order:
+      player = self.state.players[name]
+      dialogue, log = player.debate()
+      if dialogue is None:
+        raise ValueError(
+            f"{name} did not return a valid dialouge from debate()."
+        )
+
+      self.this_round_log.debate.append((name, log))
+      self.this_round.debate.append([name, dialogue])
+      tqdm.tqdm.write(f"{name} ({player.role}): {dialogue}")
+
+      for name in self.this_round.players:
+        player = self.state.players[name]
+        if player.gamestate:
+          player.gamestate.update_debate(name, dialogue)
+        else:
+          raise ValueError(f"{name}.gamestate needs to be initialized.")
+
+    return player_order[-1]
 
   def run_game(self) -> str:
     """Run the entire Werewolf game and return the winner."""

@@ -4,14 +4,14 @@ import json
 
 def main():
     # Load a pre-trained transformers model (e.g., text generation using GPT-2)
-    model = pipeline("text-generation", model="Qwen/Qwen2.5-14B-Instruct", device_map="auto")
+    model = pipeline("text-generation", model="meta-llama/Llama-3.1-8B-Instruct", device_map="auto")
 
     # Create a ZeroMQ context
     context = zmq.Context()
 
     # Create a REP (reply) socket
     socket = context.socket(zmq.REP)
-    socket.bind("tcp://*:5555")  # Bind to port 5555 on all network interfaces
+    socket.bind("tcp://*:7555")  # Bind to port 5555 on all network interfaces
 
     print("Server is running and waiting for messages...")
 

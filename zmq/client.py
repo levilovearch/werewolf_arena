@@ -7,7 +7,7 @@ def main():
 
     # Create a REQ (request) socket
     socket = context.socket(zmq.REQ)
-    socket.connect("tcp://localhost:5555")  # Connect to the server
+    socket.connect("tcp://localhost:5556")  # Connect to the server
 
     message = {"role": "user", "content": "how are you?"}
     message_str = json.dumps(message)

@@ -14,14 +14,17 @@
 
 from openai import OpenAI
 import os
+import subprocess
 
 from typing import Any
 import google
 import vertexai
 from vertexai.preview import generative_models
 from anthropic import AnthropicVertex
+from huggingface_hub import InferenceClient
 import zmq
 import json
+import requests
 
 
 def generate(model, **kwargs):
@@ -29,8 +32,10 @@ def generate(model, **kwargs):
         return generate_openai(model, **kwargs)
     elif "claude" in model:
         return generate_authropic(model, **kwargs)
-    elif "llama" in model:
+    elif "zmq" in model or "llama" in model:
         return generate_hf(model, **kwargs)
+    elif "human" in model:
+        return generate_human(model, **kwargs)
     else:
         return generate_vertexai(model, **kwargs)
 
@@ -140,7 +145,10 @@ def generate_hf(model: str, prompt: str, **kwargs):
 
     # Create a REQ (request) socket
     socket = context.socket(zmq.REQ)
-    socket.connect("tcp://localhost:5555")  # Connect to the server
+    if "llama" in model:
+        socket.connect("tcp://localhost:7555")
+    else:
+        socket.connect("tcp://localhost:5555")  # Connect to the server
 
     message = {"role": "user", "content": prompt}
     message_str = json.dumps(message)
@@ -151,3 +159,109 @@ def generate_hf(model: str, prompt: str, **kwargs):
     socket.close()
     context.term()
     return response
+
+def generate_human(model: str, prompt: str, **kwargs):
+    # Create a ZeroMQ context
+    context = zmq.Context()
+
+    # Create a REQ (request) socket
+    socket = context.socket(zmq.REQ)
+    socket.connect("tcp://localhost:5556")  # Connect to the server
+
+    # print(f"Sending request: {message_str}")
+    socket.send_string(prompt)
+
+    response = socket.recv_string()
+    socket.close()
+    context.term()
+    return response
+
+def generate_remote_hf(model: str, prompt: str, **kwargs):
+    # Create a ZeroMQ context
+    context = zmq.Context()
+
+    # Create a REQ (request) socket
+    socket = context.socket(zmq.REQ)
+    socket.connect("tcp://moore:5555")  # Connect to the server
+
+    message = {"role": "user", "content": prompt}
+    message_str = json.dumps(message)
+    # print(f"Sending request: {message_str}")
+    socket.send_string(message_str)
+
+    response = socket.recv_string()
+    socket.close()
+    context.term()
+    return response
+
+def generate_hf_inference(model: str, prompt: str, **kwargs):
+    client = InferenceClient(token="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")
+    response = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=2048,
+    )
+    txt = response.choices[0].message.content
+    print(txt)
+    if txt.endswith("\""):
+        txt = txt[:-1]
+    elif txt.endswith("```"):
+        txt = txt[:-3]
+    elif txt.endswith("\"```"):
+        txt = txt[:-4]
+    return txt
+
+def generate_vertex_post(model: str, prompt: str, **kwargs):
+    # Replace these with your actual values
+    ENDPOINT = 'us-central1-aiplatform.googleapis.com'
+    PROJECT_ID = 'eminent-citadel-271315'
+    REGION = 'us-central1'
+
+    # Get the access token using gcloud
+    # Get the access token using gcloud
+    access_token = subprocess.check_output(
+        ["gcloud", "auth", "print-access-token"]
+    ).strip().decode('utf-8')
+
+    # API endpoint
+    url = f"https://{ENDPOINT}/v1beta1/projects/{PROJECT_ID}/locations/{REGION}/endpoints/openapi/chat/completions"
+
+    # Headers
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+
+    # Payload (data to send)
+    payload = {
+        "model": "meta/llama3-405b-instruct-maas",
+        "stream": True,
+        "messages": [
+            {"role": "user", "content": prompt}
+        ]
+    }
+
+    # Make the POST request
+    response = requests.post(url, headers=headers, data=json.dumps(payload))
+    # Step 1: Split the response into lines (each line contains a JSON object)
+    lines = response.text.splitlines()
+    # Step 2: Loop through the lines and extract the content
+    responses = ""
+    for line in lines:
+        if line.startswith('data:'):
+            json_str = line[6:].strip()  # Remove the 'data: ' prefix
+            try:
+                data = json.loads(json_str)  # Convert the string to a JSON object
+                # Extract the 'content' field
+                if 'choices' in data:
+                    for choice in data['choices']:
+                        content = choice.get('delta', {}).get('content', "")
+                        if content:
+                            responses+=content
+            except json.JSONDecodeError:
+                continue
+    first_brace = responses.find('{')  
+    last_brace = responses.rfind('}')
+    responses = responses[first_brace:last_brace+1]
+    print(f"Api return:{responses}")
+    return responses

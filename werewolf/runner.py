@@ -64,6 +64,10 @@ model_to_id = {
     "gpt3.5": "gpt-3.5-turbo-0125",
     "gpt-4o-mini": "gpt-4o-mini",
     "llama31-8b": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "llama31-70b": "meta-llama/Meta-Llama-3.1-70B-Instruct",
+    "llama32-3b": "zmq/llama32-3b",
+    "qwen": "zmq/qwen",
+    "human": "human",
 }
 
 
